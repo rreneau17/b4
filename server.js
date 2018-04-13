@@ -10,6 +10,8 @@
 const pkg = require('./package.json');
 const {URL} = require('url');
 const path = require('path');
+const fs = require('fs');
+const https = require('https');
 
 // nconf configuration.
 const nconf = require('nconf');
@@ -27,6 +29,12 @@ nconf
 const serviceUrl = new URL(nconf.get('serviceUrl'));
 const servicePort =
     serviceUrl.port || (serviceUrl.protocol === 'https:' ? 443 : 80);
+
+// setup to enable https
+var certOptions = {
+  key: fs.readFileSync(path.resolve('../cert/server.key')),
+  cert: fs.readFileSync(path.resolve('../cert/server.crt'))
+}
 
 // Express and middleware.
 const express = require('express');
@@ -63,7 +71,7 @@ app.use(passport.session());
 const FacebookStrategy = require('passport-facebook').Strategy;
 passport.use(new FacebookStrategy({
   clientID: nconf.get('auth:facebook:appID'),
-  clientSecret: nconf.get('auth:facebook:appsecret'),
+  clientSecret: nconf.get('auth:facebook:appSecret'),
   callbackURL: new URL('/auth/facebook/callback', serviceUrl).href,
   }, (accessToken, refreshToken, profile, done) => done(null, profile)));
 
@@ -100,4 +108,6 @@ app.get('/auth/signout', (req, res) => {
   res.redirect('/');
 });
 
-app.listen(servicePort, () => console.log('Ready.'));
+app.use('/api', require('./lib/bundle.js')(nconf.get('es')));
+
+const server = https.createServer(certOptions, app).listen(servicePort, () => console.log('Ready.'));
